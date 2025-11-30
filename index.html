@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ImaXai Studio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontSize: {
+                xs: '1.125rem',    // 18px
+                sm: '1.25rem',     // 20px
+                base: '1.375rem',  // 22px
+                lg: '1.5rem',      // 24px
+                xl: '1.75rem',     // 28px
+                '2xl': '2rem',     // 32px
+                '3xl': '2.5rem',   // 40px
+                '4xl': '3rem',     // 48px
+            },
+            colors: {
+              background: 'var(--bg-background)',
+              surface: 'var(--bg-surface)',
+              border: 'var(--border)',
+              text: 'var(--text-main)',
+              muted: 'var(--text-muted)',
+              primary: 'var(--primary)',
+              'primary-hover': 'var(--primary-hover)',
+            },
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      :root {
+        /* Default to Dark Mode variables */
+        --bg-background: #0F1115;
+        --bg-surface: #151823;
+        --border: #262A36;
+        --text-main: #EDEDED;
+        --text-muted: #A2A6B3;
+        --primary: #FF6B00;
+        --primary-hover: #E25F00;
+      }
+
+      /* Light Mode Overrides - applied when .light class is present on html/body */
+      .light {
+        --bg-background: #F3F4F6;
+        --bg-surface: #FFFFFF;
+        --border: #E5E7EB;
+        --text-main: #111827;
+        --text-muted: #6B7280;
+        /* Primary remains consistent or can be adjusted if needed, handled by JS for custom colors */
+      }
+
+      body {
+        background-color: var(--bg-background);
+        color: var(--text-main);
+      }
+
+      /* Custom scrollbar for a better aesthetic */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: var(--bg-background);
+      }
+      ::-webkit-scrollbar-thumb {
+        background-color: var(--border);
+        border-radius: 10px;
+        border: 2px solid var(--bg-background);
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background-color: var(--primary);
+      }
+    </style>
+    <script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.25.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react-dom": "https://aistudiocdn.com/react-dom@^19.2.0",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
+    "vite": "https://aistudiocdn.com/vite@^7.2.4"
+  }
+}
+</script>
+</head>
+  <body class="bg-background text-text font-sans transition-colors duration-300">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
