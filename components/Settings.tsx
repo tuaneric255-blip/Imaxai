@@ -1,7 +1,7 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import Tabs from './ui/Tabs';
 import Button from './ui/Button';
+import { USER_API_KEY_STORAGE } from '../services/geminiService';
 
 interface SettingsProps {
     theme: 'light' | 'dark';
@@ -22,37 +22,30 @@ const COLORS = [
 ];
 
 const Settings: React.FC<SettingsProps> = ({ theme, setTheme, primaryColor, setPrimaryColor, avatar, setAvatar }) => {
-    const [apiKeyStatus, setApiKeyStatus] = useState<'checked' | 'unchecked' | 'checking'>('checking');
+    const [userApiKey, setUserApiKey] = useState('');
+    const [isKeySaved, setIsKeySaved] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const checkApiKey = async () => {
-        if (window.aistudio && window.aistudio.hasSelectedApiKey) {
-            const hasKey = await window.aistudio.hasSelectedApiKey();
-            setApiKeyStatus(hasKey ? 'checked' : 'unchecked');
-        } else {
-            // Fallback environment where window.aistudio might not exist
-            setApiKeyStatus('unchecked');
+    useEffect(() => {
+        const storedKey = localStorage.getItem(USER_API_KEY_STORAGE);
+        if (storedKey) {
+            setUserApiKey(storedKey);
+            setIsKeySaved(true);
+        }
+    }, []);
+
+    const handleSaveKey = () => {
+        if (userApiKey.trim()) {
+            localStorage.setItem(USER_API_KEY_STORAGE, userApiKey.trim());
+            setIsKeySaved(true);
+            alert("Đã lưu API Key thành công!");
         }
     };
 
-    useEffect(() => {
-        checkApiKey();
-    }, []);
-
-    const handleSelectKey = async () => {
-        if (window.aistudio && window.aistudio.openSelectKey) {
-            try {
-                await window.aistudio.openSelectKey();
-                // Re-check status after selection
-                await checkApiKey();
-            } catch (e) {
-                console.error("Error selecting key:", e);
-                // Even if error, re-check as user might have cancelled or updated
-                await checkApiKey();
-            }
-        } else {
-            alert("Trình quản lý API Key chưa sẵn sàng trong môi trường này.");
-        }
+    const handleRemoveKey = () => {
+        localStorage.removeItem(USER_API_KEY_STORAGE);
+        setUserApiKey('');
+        setIsKeySaved(false);
     };
 
     const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -160,37 +153,46 @@ const Settings: React.FC<SettingsProps> = ({ theme, setTheme, primaryColor, setP
 
     const ApiKeySettings = () => (
         <div className="space-y-6 pt-4">
-             <div className={`p-4 rounded-xl border ${apiKeyStatus === 'checked' ? 'bg-green-500/10 border-green-500/30' : 'bg-surface border-border'}`}>
+             <div className={`p-4 rounded-xl border ${isKeySaved ? 'bg-green-500/10 border-green-500/30' : 'bg-surface border-border'}`}>
                 <div className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-full ${apiKeyStatus === 'checked' ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                    <div className={`w-3 h-3 rounded-full ${isKeySaved ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                     <div>
                         <h4 className="font-semibold text-text">
-                            {apiKeyStatus === 'checked' ? 'Đã kết nối Google Cloud' : 'Chưa kết nối Project'}
+                            {isKeySaved ? 'Đã lưu API Key cá nhân' : 'Đang sử dụng Key Mặc định (Có thể bị giới hạn)'}
                         </h4>
                         <p className="text-sm text-muted">
-                            {apiKeyStatus === 'checked' 
-                                ? 'Ứng dụng đang sử dụng API Key từ tài khoản Google của bạn.' 
-                                : 'Kết nối để sử dụng các tính năng nâng cao (Gemini, Imagen, Veo).'}
+                            {isKeySaved 
+                                ? 'Ứng dụng đang sử dụng API Key từ LocalStorage của bạn. Không giới hạn hạn ngạch.' 
+                                : 'Vui lòng nhập API Key riêng để đảm bảo tốc độ và tránh lỗi 429 Quota Exceeded.'}
                         </p>
                     </div>
                 </div>
              </div>
 
              <div>
-                <h3 className="text-lg font-semibold text-text mb-2">Quản lý API Key</h3>
-                <p className="text-sm text-muted mb-4">
-                    Nhấn nút bên dưới để mở trình quản lý bảo mật của Google AI Studio. Bạn có thể chọn Project có sẵn hoặc tạo mới.
-                </p>
-                <Button onClick={handleSelectKey} className="w-full sm:w-auto">
-                    {apiKeyStatus === 'checked' ? 'Thay đổi API Key / Project' : 'Kết nối Google Cloud Project'}
-                </Button>
+                <h3 className="text-lg font-semibold text-text mb-2">Nhập Google AI Studio Key</h3>
+                <input 
+                    type="password"
+                    value={userApiKey}
+                    onChange={(e) => setUserApiKey(e.target.value)}
+                    placeholder="Dán khóa API của bạn vào đây (bắt đầu bằng AIzaSy...)"
+                    className="w-full bg-background border border-border rounded-lg p-3 text-text focus:outline-none focus:ring-2 focus:ring-primary mb-3"
+                />
+                <div className="flex gap-3">
+                    <Button onClick={handleSaveKey} className="flex-1">
+                        Lưu API Key
+                    </Button>
+                    {isKeySaved && (
+                        <Button onClick={handleRemoveKey} variant="danger" className="flex-1">
+                            Xóa Key
+                        </Button>
+                    )}
+                </div>
              </div>
              
-             {apiKeyStatus === 'unchecked' && (
-                 <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 text-sm text-text">
-                     <strong>Lưu ý:</strong> Một số tính năng như tạo ảnh chất lượng cao (Imagen 3) hoặc Lookbook yêu cầu API Key từ Project có kích hoạt thanh toán (Billing enabled).
-                 </div>
-             )}
+             <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 text-sm text-text">
+                 <strong>Bảo mật:</strong> API Key của bạn chỉ được lưu trên trình duyệt này và gửi trực tiếp đến Google Servers. Hệ thống ImaXai Studio không thu thập hay lưu trữ key của bạn.
+             </div>
         </div>
     );
 
@@ -203,38 +205,23 @@ const Settings: React.FC<SettingsProps> = ({ theme, setTheme, primaryColor, setP
                     <div className="w-8 h-8 rounded-full bg-surface border border-border flex items-center justify-center font-bold text-muted flex-shrink-0">1</div>
                     <div>
                         <h4 className="font-medium">Truy cập Google AI Studio</h4>
-                        <p className="text-sm text-muted">Nhấn vào nút <strong>"Kết nối Google Cloud Project"</strong> ở tab API Key.</p>
+                        <p className="text-sm text-muted">Truy cập <a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-primary underline">aistudio.google.com/app/apikey</a>.</p>
                     </div>
                 </div>
 
                 <div className="flex gap-4">
                     <div className="w-8 h-8 rounded-full bg-surface border border-border flex items-center justify-center font-bold text-muted flex-shrink-0">2</div>
                     <div>
-                        <h4 className="font-medium">Chọn hoặc Tạo Project</h4>
-                        <p className="text-sm text-muted">Trong hộp thoại hiện ra, chọn một dự án Google Cloud hiện có hoặc nhấn "Create new project".</p>
+                        <h4 className="font-medium">Tạo API Key</h4>
+                        <p className="text-sm text-muted">Nhấn nút <strong>"Create API Key"</strong>. Bạn có thể chọn tạo key trong dự án mới hoặc dự án có sẵn.</p>
                     </div>
                 </div>
 
                 <div className="flex gap-4">
                     <div className="w-8 h-8 rounded-full bg-surface border border-border flex items-center justify-center font-bold text-muted flex-shrink-0">3</div>
                     <div>
-                        <h4 className="font-medium">Kích hoạt Billing (Quan trọng)</h4>
-                        <p className="text-sm text-muted mb-2">Để sử dụng các model như Gemini 1.5 Pro hoặc Imagen, bạn cần liên kết tài khoản thanh toán.</p>
-                        <a 
-                            href="https://ai.google.dev/gemini-api/docs/billing" 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline text-sm"
-                        >
-                            Xem hướng dẫn Billing chính thức &rarr;
-                        </a>
-                    </div>
-                </div>
-                 <div className="flex gap-4">
-                    <div className="w-8 h-8 rounded-full bg-surface border border-border flex items-center justify-center font-bold text-muted flex-shrink-0">4</div>
-                    <div>
-                        <h4 className="font-medium">Hoàn tất</h4>
-                        <p className="text-sm text-muted">Sau khi chọn xong, ứng dụng sẽ tự động tải lại quyền truy cập. Bạn có thể bắt đầu sáng tạo!</p>
+                        <h4 className="font-medium">Sao chép và Dán</h4>
+                        <p className="text-sm text-muted">Sao chép chuỗi ký tự bắt đầu bằng <code>AIzaSy...</code> và dán vào tab "API Key & Tài khoản" trong ứng dụng này.</p>
                     </div>
                 </div>
             </div>

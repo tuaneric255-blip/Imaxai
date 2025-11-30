@@ -1,9 +1,19 @@
-
 import { GoogleGenAI, Modality, Type, GenerateContentResponse } from "@google/genai";
 
+// Key for LocalStorage
+export const USER_API_KEY_STORAGE = 'user_gemini_api_key';
+
 // Helper to get a fresh AI client instance with the latest API KEY
+// PRIORITY: LocalStorage (User Key) > process.env (System Key)
 const getAiClient = () => {
-  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const userKey = localStorage.getItem(USER_API_KEY_STORAGE);
+  const apiKey = userKey || process.env.API_KEY;
+
+  if (!apiKey) {
+    throw new Error("MISSING_API_KEY: Vui lòng nhập API Key trong phần Cài đặt để sử dụng.");
+  }
+
+  return new GoogleGenAI({ apiKey: apiKey });
 }
 
 export interface ImageAnalysisResult {
@@ -44,7 +54,6 @@ const callWithRetry = async <T>(fn: () => Promise<T>, retries = 3, initialDelay 
         await new Promise(resolve => setTimeout(resolve, delay));
         attempt++;
       } else {
-        // If it's not a quota error, or we ran out of retries, throw it
         throw error;
       }
     }
@@ -404,8 +413,6 @@ export const generateLookbookAsset = async (
     expertGuidance?: string,
     productDetails?: { name: string, features: string }
 ): Promise<string> => {
-    // Lookbook already has a high-level retry loop in the component, 
-    // but adding it here ensures transient errors are handled even within a single attempt.
     return callWithRetry(async () => {
         const ai = getAiClient();
         

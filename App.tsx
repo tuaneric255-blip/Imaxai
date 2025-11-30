@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, Suspense } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -7,6 +6,7 @@ import MobileBottomBar from './components/MobileBottomBar';
 import { ModuleId } from './types';
 import { MODULES, SETTINGS_MODULE } from './constants';
 import Spinner from './components/ui/Spinner';
+import ApiKeyModal from './components/ApiKeyModal';
 
 // Lazy Load Components for Performance Optimization on Vercel
 const FaceSafeGenerator = React.lazy(() => import('./components/FaceSafeGenerator'));
@@ -111,6 +111,8 @@ const App: React.FC = () => {
 
     return (
         <div className="flex h-screen bg-background text-text font-sans transition-colors duration-300">
+            <ApiKeyModal onClose={() => {}} />
+
             <Sidebar 
                 activeModule={activeModule} 
                 setActiveModule={handleModuleChange} 
