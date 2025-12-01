@@ -81,6 +81,9 @@ const Lookbook: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [currentTask, setCurrentTask] = useState('');
 
+    // Stop signal
+    const isStoppedRef = useRef(false);
+
     const productInputRef = useRef<HTMLInputElement>(null);
     const bgInputRef = useRef<HTMLInputElement>(null);
     const modelInputRef = useRef<HTMLInputElement>(null);
@@ -156,6 +159,11 @@ const Lookbook: React.FC = () => {
         setSelectedAngles(newAngles);
     };
 
+    const handleStop = () => {
+        isStoppedRef.current = true;
+        setCurrentTask('Đang dừng...');
+    };
+
     const handleGenerate = useCallback(async () => {
         if (!productFile) {
             alert("Vui lòng tải ảnh sản phẩm gốc.");
@@ -173,6 +181,7 @@ const Lookbook: React.FC = () => {
 
         setIsLoading(true);
         setGeneratedImages([]);
+        isStoppedRef.current = false;
         
         try {
             // Process Product Image
@@ -228,56 +237,40 @@ const Lookbook: React.FC = () => {
                 features: productFeatures
             };
 
-            const MAX_RETRIES = 3;
-
             for (let i = 0; i < tasks.length; i++) {
+                if (isStoppedRef.current) {
+                    alert('Tiến trình đã được dừng bởi người dùng.');
+                    break;
+                }
+
                 const task = tasks[i];
                 setCurrentTask(`Đang tạo (${i + 1}/${tasks.length}): ${task}...`);
                 
-                let success = false;
-                let retryCount = 0;
-
-                while (!success && retryCount <= MAX_RETRIES) {
-                    try {
-                         const result = await generateLookbookAsset(
-                            processedProduct.data,
-                            processedProduct.mimeType,
-                            task,
-                            bgContext,
-                            modelContext,
-                            { modelLock, bgLock },
-                            guidance,
-                            productDetails
-                        );
-                        setGeneratedImages(prev => [...prev, { type: task, src: result }]); 
-                        success = true;
-                    } catch (e: any) {
-                         const isQuotaError = e.message?.includes('429') || e.status === 429 || e.toString().includes('Quota') || e.toString().includes('429');
-                         
-                         if (isQuotaError) {
-                             retryCount++;
-                             if (retryCount <= MAX_RETRIES) {
-                                 // Exponential backoff: 10s, 15s, 20s
-                                 const waitTime = 10000 + (retryCount * 5000);
-                                 setCurrentTask(`Hệ thống đang bận (Quota), chờ ${waitTime / 1000}s để thử lại...`);
-                                 await new Promise(resolve => setTimeout(resolve, waitTime));
-                             } else {
-                                 alert(`Đã đạt giới hạn hạn ngạch (Quota) sau nhiều lần thử. Dừng tiến trình tại: ${task}.`);
-                                 setIsLoading(false);
-                                 setCurrentTask('');
-                                 return; // Stop completely
-                             }
-                        } else {
-                            console.error(`Failed to generate ${task}`, e);
-                            // Non-quota error, log and skip this task
-                            break; 
-                        }
+                try {
+                        const result = await generateLookbookAsset(
+                        processedProduct.data,
+                        processedProduct.mimeType,
+                        task,
+                        bgContext,
+                        modelContext,
+                        { modelLock, bgLock },
+                        guidance,
+                        productDetails
+                    );
+                    setGeneratedImages(prev => [...prev, { type: task, src: result }]); 
+                } catch (e: any) {
+                    console.error(`Failed to generate ${task}`, e);
+                    // If it's a critical error (like Quota Exceeded bubbling up after retries), stop the queue
+                    if (e.message?.includes('Quota') || e.message?.includes('quá tải')) {
+                        alert(`Dừng tiến trình do lỗi hệ thống/quota: ${e.message}`);
+                        break; 
                     }
+                    // Otherwise continue to next task
                 }
 
-                // Increased delay to prevent rate limiting (429) - Base delay 5s
+                // Add delay between tasks to be gentle on rate limits
                 if (i < tasks.length - 1) {
-                    await new Promise(resolve => setTimeout(resolve, 5000));
+                    await new Promise(resolve => setTimeout(resolve, 3000));
                 }
             }
         } catch (error: any) {
@@ -286,6 +279,7 @@ const Lookbook: React.FC = () => {
         } finally {
             setIsLoading(false);
             setCurrentTask('');
+            isStoppedRef.current = false;
         }
 
     }, [productFile, bgMode, bgFile, bgPrompt, modelMode, modelFile, modelPrompt, selectedAngles, isTextureMacro, functionalDetails, isBrandDetail, isDetailCircle, isVariations, modelLock, bgLock, consultation, productName, productFeatures]);
@@ -549,9 +543,16 @@ const Lookbook: React.FC = () => {
                         </label>
                     </div>
 
-                    <Button onClick={handleGenerate} disabled={isLoading} className="w-full mt-6 py-3 shadow-lg shadow-primary/20">
-                        {isLoading ? 'Đang xử lý...' : 'Chụp Lookbook'}
-                    </Button>
+                    <div className="flex gap-2 mt-6">
+                        <Button onClick={handleGenerate} disabled={isLoading} className="flex-1 py-3 shadow-lg shadow-primary/20">
+                            {isLoading ? 'Đang xử lý...' : 'Chụp Lookbook'}
+                        </Button>
+                        {isLoading && (
+                            <Button onClick={handleStop} variant="danger" className="w-16 flex items-center justify-center">
+                                ■
+                            </Button>
+                        )}
+                    </div>
                 </div>
             </div>
 

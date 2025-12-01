@@ -1,7 +1,8 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ModuleId } from '../types';
 import { HomeIcon } from '../constants';
+import { USER_API_KEY_STORAGE } from '../services/geminiService';
 
 interface HeaderProps {
   moduleName?: string;
@@ -12,8 +13,23 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ moduleName = 'ImaXai Studio', avatar, onToggleSidebar, activeModule, onNavigateHome }) => {
-  
+  const [hasPersonalKey, setHasPersonalKey] = useState(false);
   const isHome = activeModule === ModuleId.HOME;
+
+  useEffect(() => {
+    // Check key status on mount and when window gains focus (in case changed in another tab)
+    const checkKey = () => {
+        setHasPersonalKey(!!localStorage.getItem(USER_API_KEY_STORAGE));
+    };
+    checkKey();
+    window.addEventListener('focus', checkKey);
+    // Custom event listener if we want realtime updates from Settings
+    window.addEventListener('storage', checkKey);
+    return () => {
+        window.removeEventListener('focus', checkKey);
+        window.removeEventListener('storage', checkKey);
+    };
+  }, []);
 
   return (
     <header className="flex-shrink-0 h-16 bg-surface border-b border-border flex items-center justify-between px-4 md:px-6 lg:px-8 transition-colors duration-300">
@@ -50,22 +66,29 @@ const Header: React.FC<HeaderProps> = ({ moduleName = 'ImaXai Studio', avatar, o
       </div>
 
       <div className="flex items-center gap-4">
-        <div className="relative hidden md:block">
-          <input
-            type="search"
-            placeholder="Search tools..."
-            className="w-96 bg-background border border-border rounded-lg pl-10 pr-4 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary placeholder-muted"
-          />
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-          </svg>
+        {/* Key Status Indicator */}
+        <div 
+            className={`hidden md:flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-medium ${
+                hasPersonalKey 
+                ? 'bg-green-500/10 border-green-500/30 text-green-500' 
+                : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-500'
+            }`}
+            title={hasPersonalKey ? "Using Personal API Key (Priority)" : "Using System/Shared API Key (Quota Limited)"}
+        >
+            <div className={`w-2 h-2 rounded-full ${hasPersonalKey ? 'bg-green-500' : 'bg-yellow-500 animate-pulse'}`}></div>
+            {hasPersonalKey ? 'Personal Key' : 'System Key'}
         </div>
-        <div className="hidden sm:flex items-center gap-2 text-sm">
-          <span className="text-muted">Credits:</span>
-          <span className="font-semibold text-text">FREE</span>
+
+        {/* Credits / Free Badge */}
+        <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-primary/10 rounded-full border border-primary/20">
+             <span className="text-xs font-bold text-primary tracking-wide">FREE</span>
         </div>
-        <div className="w-10 h-10 rounded-full bg-gray-600 overflow-hidden border border-border">
-          <img src={avatar || "https://picsum.photos/40/40"} alt="User Avatar" className="w-full h-full object-cover" />
+
+        {/* Avatar */}
+        <div className="relative group">
+            <div className="w-9 h-9 rounded-full overflow-hidden border border-border group-hover:border-primary transition-colors cursor-pointer">
+                <img src={avatar} alt="User Avatar" className="w-full h-full object-cover" />
+            </div>
         </div>
       </div>
     </header>

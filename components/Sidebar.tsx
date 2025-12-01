@@ -131,7 +131,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeModule, setActiveModule, isOpen
             {!isCollapsed && (
                 <div className="px-2 pt-4 pb-1 text-center">
                     <p className="text-[10px] text-muted leading-relaxed">
-                        Version 2.6 <br/>
+                        Version 2.7 <br/>
                         Create by <span className="text-text font-medium">Ericnguyen</span>
                         <br />
                         <span className="text-primary">Odinflows</span> | Teamentors.com

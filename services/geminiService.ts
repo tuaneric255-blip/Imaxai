@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Modality, Type, GenerateContentResponse } from "@google/genai";
 
 // Key for LocalStorage
@@ -42,7 +43,9 @@ export interface LookbookConsultation {
 }
 
 // --- Retry Logic Helper ---
-const callWithRetry = async <T>(fn: () => Promise<T>, retries = 3, initialDelay = 2000): Promise<T> => {
+// Increased default retries to 5 and initial delay to 5000ms (5s)
+// Backoff strategy: 5s -> 10s -> 20s -> 40s -> 80s
+const callWithRetry = async <T>(fn: () => Promise<T>, retries = 5, initialDelay = 5000): Promise<T> => {
   let attempt = 0;
   while (attempt <= retries) {
     try {
@@ -50,13 +53,18 @@ const callWithRetry = async <T>(fn: () => Promise<T>, retries = 3, initialDelay 
     } catch (error: any) {
       const isQuotaError = 
         error.status === 429 || 
+        error.status === 503 || // Service Unavailable (often due to overload)
         (error.message && error.message.includes('429')) || 
+        (error.message && error.message.includes('503')) ||
         (error.toString() && error.toString().toLowerCase().includes('quota')) ||
-        (error.toString() && error.toString().toLowerCase().includes('exhausted'));
+        (error.toString() && error.toString().toLowerCase().includes('exhausted')) ||
+        (error.toString() && error.toString().toLowerCase().includes('overloaded'));
       
       if (isQuotaError && attempt < retries) {
-        const delay = initialDelay * Math.pow(2, attempt); // 2s, 4s, 8s
-        console.warn(`Gemini API Quota Exceeded. Retrying in ${delay}ms... (Attempt ${attempt + 1}/${retries})`);
+        const delay = initialDelay * Math.pow(2, attempt); 
+        console.warn(`Gemini API Busy/Quota (Attempt ${attempt + 1}/${retries}). Waiting ${delay/1000}s...`);
+        // We can't easily notify the UI from here without a complex context, 
+        // so we rely on the console and the long await time.
         await new Promise(resolve => setTimeout(resolve, delay));
         attempt++;
       } else {
@@ -64,7 +72,7 @@ const callWithRetry = async <T>(fn: () => Promise<T>, retries = 3, initialDelay 
       }
     }
   }
-  throw new Error("Max retries exceeded");
+  throw new Error("Hệ thống Google đang quá tải (Max Retries). Vui lòng thử lại sau ít phút hoặc dùng API Key trả phí.");
 };
 
 // Helper to extract image data from a Gemini response
