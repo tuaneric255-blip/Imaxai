@@ -7,7 +7,13 @@ export const USER_API_KEY_STORAGE = 'user_gemini_api_key';
 // PRIORITY: LocalStorage (User Key) > process.env (System Key)
 const getAiClient = () => {
   const userKey = localStorage.getItem(USER_API_KEY_STORAGE);
-  const apiKey = userKey || process.env.API_KEY;
+  const rawKey = userKey || process.env.API_KEY;
+
+  // SANITIZATION FIX:
+  // "String contains non ISO-8859-1 code point" error happens if the API Key contains
+  // non-ASCII characters (like invisible spaces, accents, or smart quotes).
+  // We strictly replace anything that is not a standard printable ASCII character.
+  const apiKey = rawKey ? rawKey.replace(/[^\x20-\x7E]/g, '').trim() : '';
 
   if (!apiKey) {
     throw new Error("MISSING_API_KEY: Vui lòng nhập API Key trong phần Cài đặt để sử dụng.");

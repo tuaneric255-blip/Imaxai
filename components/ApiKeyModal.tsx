@@ -19,8 +19,11 @@ const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onClose }) => {
     }, []);
 
     const handleSave = () => {
-        if (apiKey.trim().length > 10) {
-            localStorage.setItem(USER_API_KEY_STORAGE, apiKey.trim());
+        // Clean the key: remove invisible characters, spaces, newlines
+        const cleanKey = apiKey.replace(/[^\x20-\x7E]/g, '').trim();
+
+        if (cleanKey.length > 10) {
+            localStorage.setItem(USER_API_KEY_STORAGE, cleanKey);
             setIsVisible(false);
             onClose();
         } else {

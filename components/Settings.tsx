@@ -35,8 +35,12 @@ const Settings: React.FC<SettingsProps> = ({ theme, setTheme, primaryColor, setP
     }, []);
 
     const handleSaveKey = () => {
-        if (userApiKey.trim()) {
-            localStorage.setItem(USER_API_KEY_STORAGE, userApiKey.trim());
+        // Sanitize Input: remove invisible chars, spaces, newlines
+        const cleanKey = userApiKey.replace(/[^\x20-\x7E]/g, '').trim();
+
+        if (cleanKey) {
+            localStorage.setItem(USER_API_KEY_STORAGE, cleanKey);
+            setUserApiKey(cleanKey); // Update input to show clean version
             setIsKeySaved(true);
             alert("Đã lưu API Key thành công!");
         }
