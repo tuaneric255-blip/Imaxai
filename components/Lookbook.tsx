@@ -1,7 +1,7 @@
 
 import React, { useState, useCallback, useRef } from 'react';
-import { generateLookbookAsset, consultLookbookShots, LookbookConsultation, formatGeminiError } from '../services/geminiService';
-import { fileToBase64, processImageForGemini } from '../utils/fileUtils';
+import { generateLookbookAsset, consultLookbookShots, LookbookConsultation, formatGeminiError, USER_API_KEY_STORAGE } from '../services/geminiService';
+import { processImageForGemini } from '../utils/fileUtils';
 import Button from './ui/Button';
 import Spinner from './ui/Spinner';
 import Tabs from './ui/Tabs';
@@ -279,7 +279,15 @@ const Lookbook: React.FC = () => {
 
                 // Add delay between tasks to be gentle on rate limits
                 if (i < tasks.length - 1) {
-                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    // Optimized Delay:
+                    // If user has personal key -> 0ms delay (Fastest)
+                    // If user uses free/system key -> 1000ms delay (Safe but faster than 3000ms)
+                    const hasPersonalKey = !!localStorage.getItem(USER_API_KEY_STORAGE);
+                    const delayTime = hasPersonalKey ? 0 : 1000;
+                    
+                    if (delayTime > 0) {
+                        await new Promise(resolve => setTimeout(resolve, delayTime));
+                    }
                 }
             }
         } catch (error: any) {

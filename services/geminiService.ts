@@ -78,9 +78,10 @@ export const formatGeminiError = (error: any): string => {
 };
 
 // --- Retry Logic Helper ---
-// Increased default retries to 5 and initial delay to 5000ms (5s)
-// Backoff strategy: 5s -> 10s -> 20s -> 40s -> 80s
-const callWithRetry = async <T>(fn: () => Promise<T>, retries = 5, initialDelay = 5000): Promise<T> => {
+// Increased default retries to 5.
+// Reduced initialDelay to 2000ms (2s) for faster recovery.
+// Backoff strategy: 2s -> 4s -> 8s -> 16s -> 32s
+const callWithRetry = async <T>(fn: () => Promise<T>, retries = 5, initialDelay = 2000): Promise<T> => {
   let attempt = 0;
   while (attempt <= retries) {
     try {
