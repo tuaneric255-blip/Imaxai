@@ -1,12 +1,13 @@
 
 import React, { useState, useCallback, useRef } from 'react';
-import { generateFaceSafeImage } from '../services/geminiService';
-import { fileToBase64, processImageForGemini } from '../utils/fileUtils';
+import { generateFaceSafeImage, formatGeminiError } from '../services/geminiService';
+import { processImageForGemini } from '../utils/fileUtils';
 import Button from './ui/Button';
 import Slider from './ui/Slider';
 import Tabs from './ui/Tabs';
 import Spinner from './ui/Spinner';
 import ZoomableImage from './ui/ZoomableImage';
+import { useToast } from './ui/Toast';
 
 // --- Configuration Data ---
 
@@ -228,8 +229,8 @@ const FaceSafeGenerator: React.FC = () => {
     // Output
     const [generatedImages, setGeneratedImages] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
+    
+    const { addToast } = useToast();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -241,12 +242,11 @@ const FaceSafeGenerator: React.FC = () => {
 
     const handleGenerate = useCallback(async () => {
         if (referenceFiles.length === 0) {
-            setError('Vui lòng tải lên ít nhất một ảnh tham chiếu.');
+            addToast('Vui lòng tải lên ít nhất một ảnh tham chiếu.', 'warning');
             return;
         }
 
         setIsLoading(true);
-        setError(null);
         setGeneratedImages([]);
 
         try {
@@ -283,11 +283,11 @@ const FaceSafeGenerator: React.FC = () => {
             setGeneratedImages([result]);
         } catch (e: any) {
             console.error(e);
-            setError(`Generation failed: ${e.message}.`);
+            addToast(formatGeminiError(e), 'error');
         } finally {
             setIsLoading(false);
         }
-    }, [referenceFiles, gender, selectedStyleId, bgMode, customBgPrompt, lighting, camera, negativePrompt, faceLock]);
+    }, [referenceFiles, gender, selectedStyleId, bgMode, customBgPrompt, lighting, camera, negativePrompt, faceLock, addToast]);
 
     // Derived state for UI
     const currentStyleList = STYLES[gender];
@@ -475,12 +475,6 @@ const FaceSafeGenerator: React.FC = () => {
                             <Spinner />
                             <p className="mt-4 text-text font-medium animate-pulse">AI đang vẽ style {currentStyleList.find(s => s.id === selectedStyleId)?.name}...</p>
                             <p className="text-xs text-muted mt-1">Đang tinh chỉnh ánh sáng & góc máy</p>
-                        </div>
-                    ) : error ? (
-                        <div className="text-center text-[#FF4444] p-6 max-w-md bg-surface border border-[#FF4444]/20 rounded-xl">
-                            <p className="font-semibold mb-2">Đã xảy ra lỗi</p>
-                            <p className="text-sm">{error}</p>
-                            <Button onClick={handleGenerate} className="mt-4" size="sm">Thử lại</Button>
                         </div>
                     ) : generatedImages.length > 0 ? (
                         <div className="grid grid-cols-1 gap-4 w-full h-full content-start">

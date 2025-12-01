@@ -1,12 +1,13 @@
 
 import React, { useState, useCallback, useRef } from 'react';
-import { generateLookbookAsset, consultLookbookShots, LookbookConsultation } from '../services/geminiService';
+import { generateLookbookAsset, consultLookbookShots, LookbookConsultation, formatGeminiError } from '../services/geminiService';
 import { fileToBase64, processImageForGemini } from '../utils/fileUtils';
 import Button from './ui/Button';
 import Spinner from './ui/Spinner';
 import Tabs from './ui/Tabs';
 import Slider from './ui/Slider';
 import ZoomableImage from './ui/ZoomableImage';
+import { useToast } from './ui/Toast';
 
 type Category = 'clothing' | 'jewelry' | 'bags' | 'footwear' | 'other';
 
@@ -87,6 +88,8 @@ const Lookbook: React.FC = () => {
     const productInputRef = useRef<HTMLInputElement>(null);
     const bgInputRef = useRef<HTMLInputElement>(null);
     const modelInputRef = useRef<HTMLInputElement>(null);
+    
+    const { addToast } = useToast();
 
     const handleProductChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -131,7 +134,7 @@ const Lookbook: React.FC = () => {
 
     const handleConsult = async () => {
         if (!productFile) {
-            alert("Vui lòng tải ảnh sản phẩm trước khi tư vấn.");
+            addToast("Vui lòng tải ảnh sản phẩm trước khi tư vấn.", 'warning');
             return;
         }
         setIsConsulting(true);
@@ -141,9 +144,10 @@ const Lookbook: React.FC = () => {
             const context = `Name: ${productName}. Features: ${productFeatures}. Desc: ${productDescription}`;
             const result = await consultLookbookShots(processed.data, processed.mimeType, context);
             setConsultation(result);
+            addToast("Đã hoàn tất tư vấn ý tưởng!", 'success');
         } catch (e: any) {
             console.error(e);
-            alert("Lỗi khi tư vấn: " + e.message);
+            addToast(formatGeminiError(e), 'error');
         } finally {
             setIsConsulting(false);
         }
@@ -157,16 +161,18 @@ const Lookbook: React.FC = () => {
             }
         });
         setSelectedAngles(newAngles);
+        addToast("Đã áp dụng các góc chụp được gợi ý.", 'success');
     };
 
     const handleStop = () => {
         isStoppedRef.current = true;
         setCurrentTask('Đang dừng...');
+        addToast("Đang dừng tiến trình...", 'info');
     };
 
     const handleGenerate = useCallback(async () => {
         if (!productFile) {
-            alert("Vui lòng tải ảnh sản phẩm gốc.");
+            addToast("Vui lòng tải ảnh sản phẩm gốc.", 'warning');
             return;
         }
         
@@ -175,7 +181,7 @@ const Lookbook: React.FC = () => {
         const hasSpecial = isTextureMacro || functionalDetails.length > 0 || isBrandDetail || isDetailCircle || isVariations;
 
         if (!hasAngles && !hasSpecial) {
-            alert("Vui lòng chọn ít nhất một kiểu ảnh (góc chụp hoặc chi tiết).");
+            addToast("Vui lòng chọn ít nhất một kiểu ảnh (góc chụp hoặc chi tiết).", 'warning');
             return;
         }
 
@@ -239,7 +245,7 @@ const Lookbook: React.FC = () => {
 
             for (let i = 0; i < tasks.length; i++) {
                 if (isStoppedRef.current) {
-                    alert('Tiến trình đã được dừng bởi người dùng.');
+                    addToast('Đã dừng tiến trình.', 'info');
                     break;
                 }
 
@@ -260,12 +266,15 @@ const Lookbook: React.FC = () => {
                     setGeneratedImages(prev => [...prev, { type: task, src: result }]); 
                 } catch (e: any) {
                     console.error(`Failed to generate ${task}`, e);
+                    const errorMsg = formatGeminiError(e);
+                    
                     // If it's a critical error (like Quota Exceeded bubbling up after retries), stop the queue
-                    if (e.message?.includes('Quota') || e.message?.includes('quá tải')) {
-                        alert(`Dừng tiến trình do lỗi hệ thống/quota: ${e.message}`);
+                    if (errorMsg.includes('Quota') || errorMsg.includes('quá tải')) {
+                        addToast(`Dừng tiến trình: ${errorMsg}`, 'error');
                         break; 
+                    } else {
+                         addToast(`Lỗi tạo ảnh "${task}": ${errorMsg}`, 'error');
                     }
-                    // Otherwise continue to next task
                 }
 
                 // Add delay between tasks to be gentle on rate limits
@@ -275,14 +284,14 @@ const Lookbook: React.FC = () => {
             }
         } catch (error: any) {
             console.error(error);
-            alert(`Có lỗi xảy ra: ${error.message}`);
+            addToast(`Lỗi không mong muốn: ${formatGeminiError(error)}`, 'error');
         } finally {
             setIsLoading(false);
             setCurrentTask('');
             isStoppedRef.current = false;
         }
 
-    }, [productFile, bgMode, bgFile, bgPrompt, modelMode, modelFile, modelPrompt, selectedAngles, isTextureMacro, functionalDetails, isBrandDetail, isDetailCircle, isVariations, modelLock, bgLock, consultation, productName, productFeatures]);
+    }, [productFile, bgMode, bgFile, bgPrompt, modelMode, modelFile, modelPrompt, selectedAngles, isTextureMacro, functionalDetails, isBrandDetail, isDetailCircle, isVariations, modelLock, bgLock, consultation, productName, productFeatures, addToast]);
 
 
     const bgTabs = [

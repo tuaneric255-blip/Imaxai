@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, Suspense } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -7,6 +8,7 @@ import { ModuleId } from './types';
 import { MODULES, SETTINGS_MODULE } from './constants';
 import Spinner from './components/ui/Spinner';
 import ApiKeyModal from './components/ApiKeyModal';
+import { ToastProvider } from './components/ui/Toast';
 
 // Lazy Load Components for Performance Optimization on Vercel
 const FaceSafeGenerator = React.lazy(() => import('./components/FaceSafeGenerator'));
@@ -26,9 +28,11 @@ const App: React.FC = () => {
     // Start at Home (Dashboard)
     const [activeModule, setActiveModule] = useState<ModuleId>(ModuleId.HOME);
     
+    // Global Settings
     const [theme, setTheme] = useState<'dark' | 'light'>('dark');
     const [primaryColor, setPrimaryColor] = useState('#3B82F6');
     const [avatar, setAvatar] = useState('https://picsum.photos/200');
+    const [language, setLanguage] = useState<'vi' | 'en'>('vi');
     
     // Sidebar States
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -51,6 +55,19 @@ const App: React.FC = () => {
         document.documentElement.style.setProperty('--primary', primaryColor);
         document.documentElement.style.setProperty('--primary-hover', primaryColor); 
     }, [primaryColor]);
+
+    // Load/Save Language
+    useEffect(() => {
+        const storedLang = localStorage.getItem('app_language');
+        if (storedLang === 'en' || storedLang === 'vi') {
+            setLanguage(storedLang);
+        }
+    }, []);
+
+    useEffect(() => {
+        localStorage.setItem('app_language', language);
+    }, [language]);
+
 
     // Navigation Handler
     const handleModuleChange = (id: ModuleId) => {
@@ -103,6 +120,8 @@ const App: React.FC = () => {
                             setPrimaryColor={setPrimaryColor} 
                             avatar={avatar}
                             setAvatar={setAvatar}
+                            language={language}
+                            setLanguage={setLanguage}
                         />;
             default:
                 return <div className="text-center text-text">Module not found</div>;
@@ -110,41 +129,47 @@ const App: React.FC = () => {
     };
 
     return (
-        <div className="flex h-screen bg-background text-text font-sans transition-colors duration-300">
-            <ApiKeyModal onClose={() => {}} />
+        <ToastProvider>
+            <div className="flex h-screen bg-background text-text font-sans transition-colors duration-300">
+                <ApiKeyModal 
+                    onClose={() => {}} 
+                    language={language} 
+                    setLanguage={setLanguage} 
+                />
 
-            <Sidebar 
-                activeModule={activeModule} 
-                setActiveModule={handleModuleChange} 
-                isOpen={isMobileSidebarOpen}
-                isCollapsed={isSidebarCollapsed}
-                toggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                onClose={() => setIsMobileSidebarOpen(false)}
-            />
-            
-            <div className="flex-1 flex flex-col overflow-hidden relative">
-                <Header 
-                    moduleName={activeModuleInfo?.name} 
-                    avatar={avatar} 
-                    activeModule={activeModule}
-                    onToggleSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
-                    onNavigateHome={() => handleModuleChange(ModuleId.HOME)}
+                <Sidebar 
+                    activeModule={activeModule} 
+                    setActiveModule={handleModuleChange} 
+                    isOpen={isMobileSidebarOpen}
+                    isCollapsed={isSidebarCollapsed}
+                    toggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                    onClose={() => setIsMobileSidebarOpen(false)}
                 />
                 
-                <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 pb-20 md:pb-8">
-                    <Suspense fallback={
-                        <div className="w-full h-full flex flex-col items-center justify-center">
-                            <Spinner />
-                            <p className="mt-4 text-muted">Loading module...</p>
-                        </div>
-                    }>
-                        {renderActiveModule()}
-                    </Suspense>
-                </main>
+                <div className="flex-1 flex flex-col overflow-hidden relative">
+                    <Header 
+                        moduleName={activeModuleInfo?.name} 
+                        avatar={avatar} 
+                        activeModule={activeModule}
+                        onToggleSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+                        onNavigateHome={() => handleModuleChange(ModuleId.HOME)}
+                    />
+                    
+                    <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 pb-20 md:pb-8">
+                        <Suspense fallback={
+                            <div className="w-full h-full flex flex-col items-center justify-center">
+                                <Spinner />
+                                <p className="mt-4 text-muted">Loading module...</p>
+                            </div>
+                        }>
+                            {renderActiveModule()}
+                        </Suspense>
+                    </main>
 
-                <MobileBottomBar activeModule={activeModule} setActiveModule={handleModuleChange} />
+                    <MobileBottomBar activeModule={activeModule} setActiveModule={handleModuleChange} />
+                </div>
             </div>
-        </div>
+        </ToastProvider>
     );
 };
 

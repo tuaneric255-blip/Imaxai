@@ -1,7 +1,9 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import Tabs from './ui/Tabs';
 import Button from './ui/Button';
 import { USER_API_KEY_STORAGE } from '../services/geminiService';
+import { useToast } from './ui/Toast';
 
 interface SettingsProps {
     theme: 'light' | 'dark';
@@ -10,6 +12,8 @@ interface SettingsProps {
     setPrimaryColor: (color: string) => void;
     avatar: string;
     setAvatar: (url: string) => void;
+    language: 'vi' | 'en';
+    setLanguage: (lang: 'vi' | 'en') => void;
 }
 
 const COLORS = [
@@ -21,10 +25,100 @@ const COLORS = [
     { name: 'Red', value: '#EF4444' },
 ];
 
-const Settings: React.FC<SettingsProps> = ({ theme, setTheme, primaryColor, setPrimaryColor, avatar, setAvatar }) => {
+// Translations for Settings Page
+const TRANSLATIONS = {
+    vi: {
+        settingsTitle: "Cài đặt",
+        settingsDesc: "Tùy chỉnh giao diện và quản lý kết nối.",
+        tabInterface: "Giao diện",
+        tabApiKey: "API Key & Tài khoản",
+        tabGuide: "Hướng dẫn",
+        
+        // Interface
+        personalInfo: "Thông tin cá nhân",
+        changeAvatar: "Đổi Avatar",
+        avatarNote: "Hỗ trợ JPG, PNG. Tối đa 2MB.",
+        themeMode: "Chế độ nền",
+        lightMode: "Chế độ Sáng",
+        darkMode: "Chế độ Tối",
+        primaryColor: "Màu chủ đạo",
+        language: "Ngôn ngữ / Language",
+
+        // API Key
+        keySavedTitle: "Đã lưu API Key cá nhân",
+        keyDefaultTitle: "Đang sử dụng Key Mặc định (Có thể bị giới hạn)",
+        keySavedDesc: "Ứng dụng đang sử dụng API Key từ LocalStorage của bạn. Không giới hạn hạn ngạch.",
+        keyDefaultDesc: "Vui lòng nhập API Key riêng để đảm bảo tốc độ và tránh lỗi 429 Quota Exceeded.",
+        enterKeyTitle: "Nhập Google AI Studio Key",
+        keyPlaceholder: "Dán khóa API của bạn vào đây (bắt đầu bằng AIzaSy...)",
+        saveKeyBtn: "Lưu API Key",
+        removeKeyBtn: "Xóa Key",
+        securityNote: "Bảo mật: API Key của bạn chỉ được lưu trên trình duyệt này và gửi trực tiếp đến Google Servers. Hệ thống ImaXai Studio không thu thập hay lưu trữ key của bạn.",
+        toastKeySaved: "Đã lưu API Key thành công!",
+        toastKeyRemoved: "Đã xóa API Key.",
+        toastInvalid: "Vui lòng nhập API Key hợp lệ.",
+        toastAvatar: "Đã cập nhật Avatar",
+
+        // Guide
+        guideTitle: "Hướng dẫn lấy API Key & Cấu hình",
+        step1Title: "Truy cập Google AI Studio",
+        step1Desc: "Truy cập",
+        step2Title: "Tạo API Key",
+        step2Desc: "Nhấn nút 'Create API Key'. Bạn có thể chọn tạo key trong dự án mới hoặc dự án có sẵn.",
+        step3Title: "Sao chép và Dán",
+        step3Desc: "Sao chép chuỗi ký tự bắt đầu bằng AIzaSy... và dán vào tab 'API Key & Tài khoản' trong ứng dụng này.",
+    },
+    en: {
+        settingsTitle: "Settings",
+        settingsDesc: "Customize interface and manage connections.",
+        tabInterface: "Interface",
+        tabApiKey: "API Key & Account",
+        tabGuide: "Guide",
+        
+        // Interface
+        personalInfo: "Personal Info",
+        changeAvatar: "Change Avatar",
+        avatarNote: "Supports JPG, PNG. Max 2MB.",
+        themeMode: "Theme Mode",
+        lightMode: "Light Mode",
+        darkMode: "Dark Mode",
+        primaryColor: "Primary Color",
+        language: "Language / Ngôn ngữ",
+
+        // API Key
+        keySavedTitle: "Personal API Key Saved",
+        keyDefaultTitle: "Using Default Key (Quota Limited)",
+        keySavedDesc: "App is using the API Key from your LocalStorage. No quota limits.",
+        keyDefaultDesc: "Please enter your own API Key to ensure speed and avoid 429 Quota Exceeded errors.",
+        enterKeyTitle: "Enter Google AI Studio Key",
+        keyPlaceholder: "Paste your API Key here (starts with AIzaSy...)",
+        saveKeyBtn: "Save API Key",
+        removeKeyBtn: "Remove Key",
+        securityNote: "Security: Your API Key is stored only in this browser and sent directly to Google Servers. ImaXai Studio does not collect or store your key.",
+        toastKeySaved: "API Key saved successfully!",
+        toastKeyRemoved: "API Key removed.",
+        toastInvalid: "Please enter a valid API Key.",
+        toastAvatar: "Avatar updated",
+
+        // Guide
+        guideTitle: "How to get API Key & Configuration",
+        step1Title: "Access Google AI Studio",
+        step1Desc: "Go to",
+        step2Title: "Create API Key",
+        step2Desc: "Click 'Create API Key'. You can choose to create a key in a new or existing project.",
+        step3Title: "Copy and Paste",
+        step3Desc: "Copy the string starting with AIzaSy... and paste it into the 'API Key & Account' tab in this app.",
+    }
+};
+
+const Settings: React.FC<SettingsProps> = ({ theme, setTheme, primaryColor, setPrimaryColor, avatar, setAvatar, language, setLanguage }) => {
     const [userApiKey, setUserApiKey] = useState('');
     const [isKeySaved, setIsKeySaved] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const { addToast } = useToast();
+
+    // Get current translation
+    const t = TRANSLATIONS[language];
 
     useEffect(() => {
         const storedKey = localStorage.getItem(USER_API_KEY_STORAGE);
@@ -42,7 +136,9 @@ const Settings: React.FC<SettingsProps> = ({ theme, setTheme, primaryColor, setP
             localStorage.setItem(USER_API_KEY_STORAGE, cleanKey);
             setUserApiKey(cleanKey); // Update input to show clean version
             setIsKeySaved(true);
-            alert("Đã lưu API Key thành công!");
+            addToast(t.toastKeySaved, 'success');
+        } else {
+            addToast(t.toastInvalid, 'error');
         }
     };
 
@@ -50,6 +146,7 @@ const Settings: React.FC<SettingsProps> = ({ theme, setTheme, primaryColor, setP
         localStorage.removeItem(USER_API_KEY_STORAGE);
         setUserApiKey('');
         setIsKeySaved(false);
+        addToast(t.toastKeyRemoved, 'info');
     };
 
     const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -57,6 +154,7 @@ const Settings: React.FC<SettingsProps> = ({ theme, setTheme, primaryColor, setP
         if (file) {
             const url = URL.createObjectURL(file);
             setAvatar(url);
+            addToast(t.toastAvatar, 'success');
         }
     };
 
@@ -66,7 +164,7 @@ const Settings: React.FC<SettingsProps> = ({ theme, setTheme, primaryColor, setP
         <div className="space-y-8 pt-4">
              {/* Personal Info / Avatar */}
              <div>
-                <h3 className="text-lg font-semibold text-text mb-4">Thông tin cá nhân</h3>
+                <h3 className="text-lg font-semibold text-text mb-4">{t.personalInfo}</h3>
                 <div className="flex items-center gap-6">
                     <div className="relative group">
                         <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-border group-hover:border-primary transition-colors">
@@ -84,9 +182,9 @@ const Settings: React.FC<SettingsProps> = ({ theme, setTheme, primaryColor, setP
                     </div>
                     <div>
                         <Button variant="secondary" size="sm" onClick={() => fileInputRef.current?.click()}>
-                            Đổi Avatar
+                            {t.changeAvatar}
                         </Button>
-                        <p className="text-xs text-muted mt-2">Hỗ trợ JPG, PNG. Tối đa 2MB.</p>
+                        <p className="text-xs text-muted mt-2">{t.avatarNote}</p>
                         <input 
                             type="file" 
                             ref={fileInputRef} 
@@ -99,10 +197,31 @@ const Settings: React.FC<SettingsProps> = ({ theme, setTheme, primaryColor, setP
              </div>
 
              <div className="w-full h-px bg-border"></div>
+            
+             {/* Language Selector */}
+             <div>
+                <h3 className="text-lg font-semibold text-text mb-4">{t.language}</h3>
+                <div className="flex bg-background border border-border rounded-lg p-1 max-w-sm">
+                    <button 
+                        className={`flex-1 py-2 text-sm font-medium rounded transition-colors ${language === 'vi' ? 'bg-primary text-white shadow-sm' : 'text-muted hover:text-text'}`}
+                        onClick={() => setLanguage('vi')}
+                    >
+                        Tiếng Việt
+                    </button>
+                    <button 
+                        className={`flex-1 py-2 text-sm font-medium rounded transition-colors ${language === 'en' ? 'bg-primary text-white shadow-sm' : 'text-muted hover:text-text'}`}
+                        onClick={() => setLanguage('en')}
+                    >
+                        English
+                    </button>
+                </div>
+             </div>
+
+             <div className="w-full h-px bg-border"></div>
 
             {/* Theme Toggle */}
             <div>
-                <h3 className="text-lg font-semibold text-text mb-4">Chế độ nền</h3>
+                <h3 className="text-lg font-semibold text-text mb-4">{t.themeMode}</h3>
                 <div className="flex gap-4">
                     <button
                         onClick={() => setTheme('light')}
@@ -113,7 +232,7 @@ const Settings: React.FC<SettingsProps> = ({ theme, setTheme, primaryColor, setP
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
                             </svg>
                         </div>
-                        <span className={`font-medium ${theme === 'light' ? 'text-primary' : 'text-muted'}`}>Chế độ Sáng</span>
+                        <span className={`font-medium ${theme === 'light' ? 'text-primary' : 'text-muted'}`}>{t.lightMode}</span>
                     </button>
 
                     <button
@@ -125,14 +244,14 @@ const Settings: React.FC<SettingsProps> = ({ theme, setTheme, primaryColor, setP
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
                             </svg>
                         </div>
-                        <span className={`font-medium ${theme === 'dark' ? 'text-primary' : 'text-muted'}`}>Chế độ Tối</span>
+                        <span className={`font-medium ${theme === 'dark' ? 'text-primary' : 'text-muted'}`}>{t.darkMode}</span>
                     </button>
                 </div>
             </div>
 
             {/* Color Picker */}
             <div>
-                    <h3 className="text-lg font-semibold text-text mb-4">Màu chủ đạo</h3>
+                    <h3 className="text-lg font-semibold text-text mb-4">{t.primaryColor}</h3>
                     <div className="grid grid-cols-3 sm:grid-cols-6 gap-4">
                         {COLORS.map((color) => (
                             <button
@@ -162,70 +281,68 @@ const Settings: React.FC<SettingsProps> = ({ theme, setTheme, primaryColor, setP
                     <div className={`w-3 h-3 rounded-full ${isKeySaved ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                     <div>
                         <h4 className="font-semibold text-text">
-                            {isKeySaved ? 'Đã lưu API Key cá nhân' : 'Đang sử dụng Key Mặc định (Có thể bị giới hạn)'}
+                            {isKeySaved ? t.keySavedTitle : t.keyDefaultTitle}
                         </h4>
                         <p className="text-sm text-muted">
-                            {isKeySaved 
-                                ? 'Ứng dụng đang sử dụng API Key từ LocalStorage của bạn. Không giới hạn hạn ngạch.' 
-                                : 'Vui lòng nhập API Key riêng để đảm bảo tốc độ và tránh lỗi 429 Quota Exceeded.'}
+                            {isKeySaved ? t.keySavedDesc : t.keyDefaultDesc}
                         </p>
                     </div>
                 </div>
              </div>
 
              <div>
-                <h3 className="text-lg font-semibold text-text mb-2">Nhập Google AI Studio Key</h3>
+                <h3 className="text-lg font-semibold text-text mb-2">{t.enterKeyTitle}</h3>
                 <input 
                     type="password"
                     value={userApiKey}
                     onChange={(e) => setUserApiKey(e.target.value)}
-                    placeholder="Dán khóa API của bạn vào đây (bắt đầu bằng AIzaSy...)"
+                    placeholder={t.keyPlaceholder}
                     className="w-full bg-background border border-border rounded-lg p-3 text-text focus:outline-none focus:ring-2 focus:ring-primary mb-3"
                 />
                 <div className="flex gap-3">
                     <Button onClick={handleSaveKey} className="flex-1">
-                        Lưu API Key
+                        {t.saveKeyBtn}
                     </Button>
                     {isKeySaved && (
                         <Button onClick={handleRemoveKey} variant="danger" className="flex-1">
-                            Xóa Key
+                            {t.removeKeyBtn}
                         </Button>
                     )}
                 </div>
              </div>
              
              <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 text-sm text-text">
-                 <strong>Bảo mật:</strong> API Key của bạn chỉ được lưu trên trình duyệt này và gửi trực tiếp đến Google Servers. Hệ thống ImaXai Studio không thu thập hay lưu trữ key của bạn.
+                 <strong>{language === 'vi' ? 'Bảo mật:' : 'Security:'}</strong> {t.securityNote.replace('Bảo mật: ', '').replace('Security: ', '')}
              </div>
         </div>
     );
 
     const GuideSettings = () => (
         <div className="space-y-6 pt-4 text-text">
-            <h3 className="text-lg font-semibold">Hướng dẫn lấy API Key & Cấu hình</h3>
+            <h3 className="text-lg font-semibold">{t.guideTitle}</h3>
             
             <div className="space-y-4">
                 <div className="flex gap-4">
                     <div className="w-8 h-8 rounded-full bg-surface border border-border flex items-center justify-center font-bold text-muted flex-shrink-0">1</div>
                     <div>
-                        <h4 className="font-medium">Truy cập Google AI Studio</h4>
-                        <p className="text-sm text-muted">Truy cập <a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-primary underline">aistudio.google.com/app/apikey</a>.</p>
+                        <h4 className="font-medium">{t.step1Title}</h4>
+                        <p className="text-sm text-muted">{t.step1Desc} <a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-primary underline">aistudio.google.com/app/apikey</a>.</p>
                     </div>
                 </div>
 
                 <div className="flex gap-4">
                     <div className="w-8 h-8 rounded-full bg-surface border border-border flex items-center justify-center font-bold text-muted flex-shrink-0">2</div>
                     <div>
-                        <h4 className="font-medium">Tạo API Key</h4>
-                        <p className="text-sm text-muted">Nhấn nút <strong>"Create API Key"</strong>. Bạn có thể chọn tạo key trong dự án mới hoặc dự án có sẵn.</p>
+                        <h4 className="font-medium">{t.step2Title}</h4>
+                        <p className="text-sm text-muted">{t.step2Desc}</p>
                     </div>
                 </div>
 
                 <div className="flex gap-4">
                     <div className="w-8 h-8 rounded-full bg-surface border border-border flex items-center justify-center font-bold text-muted flex-shrink-0">3</div>
                     <div>
-                        <h4 className="font-medium">Sao chép và Dán</h4>
-                        <p className="text-sm text-muted">Sao chép chuỗi ký tự bắt đầu bằng <code>AIzaSy...</code> và dán vào tab "API Key & Tài khoản" trong ứng dụng này.</p>
+                        <h4 className="font-medium">{t.step3Title}</h4>
+                        <p className="text-sm text-muted">{t.step3Desc}</p>
                     </div>
                 </div>
             </div>
@@ -233,16 +350,16 @@ const Settings: React.FC<SettingsProps> = ({ theme, setTheme, primaryColor, setP
     );
 
     const tabs = [
-        { title: 'Giao diện', content: <ThemeSettings /> },
-        { title: 'API Key & Tài khoản', content: <ApiKeySettings /> },
-        { title: 'Hướng dẫn', content: <GuideSettings /> },
+        { title: t.tabInterface, content: <ThemeSettings /> },
+        { title: t.tabApiKey, content: <ApiKeySettings /> },
+        { title: t.tabGuide, content: <GuideSettings /> },
     ];
 
     return (
         <div className="max-w-3xl mx-auto h-full flex flex-col">
              <div className="bg-surface rounded-2xl p-6 md:p-8 border border-border shadow-sm min-h-[500px]">
-                <h2 className="text-2xl font-bold text-text mb-2">Cài đặt</h2>
-                <p className="text-muted mb-6">Tùy chỉnh giao diện và quản lý kết nối.</p>
+                <h2 className="text-2xl font-bold text-text mb-2">{t.settingsTitle}</h2>
+                <p className="text-muted mb-6">{t.settingsDesc}</p>
                 
                 <Tabs tabs={tabs} />
              </div>

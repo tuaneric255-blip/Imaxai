@@ -42,6 +42,41 @@ export interface LookbookConsultation {
     }[];
 }
 
+// Helper to format raw API errors (including nested JSON strings) into friendly text
+export const formatGeminiError = (error: any): string => {
+    if (!error) return "Unknown error";
+    let msg = error.message || error.toString();
+    
+    // Check if message is a JSON string (The "Unexpected JSON..." error issue)
+    if (typeof msg === 'string' && (msg.includes('{') && msg.includes('error'))) {
+        try {
+            // Attempt to find and parse the JSON part
+            const jsonMatch = msg.match(/\{.*\}/s);
+            if (jsonMatch) {
+                const parsed = JSON.parse(jsonMatch[0]);
+                if (parsed.error && parsed.error.message) {
+                    msg = parsed.error.message;
+                }
+            }
+        } catch (e) {
+            // Failed to parse, stick to original string
+        }
+    }
+
+    // Friendly mapping
+    if (msg.includes('429') || msg.includes('Quota') || msg.includes('quota')) {
+        return "⚠️ Hết hạn ngạch miễn phí (Quota Exceeded). Vui lòng đợi 1-2 phút hoặc nhập API Key cá nhân trong Cài đặt.";
+    }
+    if (msg.includes('503') || msg.includes('Overloaded')) {
+        return "⚠️ Server Google đang quá tải. Vui lòng thử lại sau.";
+    }
+    if (msg.includes('MISSING_API_KEY')) {
+        return "⚠️ Chưa có API Key. Vui lòng vào Cài đặt > API Key để cấu hình.";
+    }
+    
+    return msg;
+};
+
 // --- Retry Logic Helper ---
 // Increased default retries to 5 and initial delay to 5000ms (5s)
 // Backoff strategy: 5s -> 10s -> 20s -> 40s -> 80s
@@ -63,8 +98,6 @@ const callWithRetry = async <T>(fn: () => Promise<T>, retries = 5, initialDelay 
       if (isQuotaError && attempt < retries) {
         const delay = initialDelay * Math.pow(2, attempt); 
         console.warn(`Gemini API Busy/Quota (Attempt ${attempt + 1}/${retries}). Waiting ${delay/1000}s...`);
-        // We can't easily notify the UI from here without a complex context, 
-        // so we rely on the console and the long await time.
         await new Promise(resolve => setTimeout(resolve, delay));
         attempt++;
       } else {
