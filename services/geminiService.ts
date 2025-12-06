@@ -7,19 +7,13 @@ export const USER_API_KEY_STORAGE = 'user_gemini_api_key';
 // Helper to get a fresh AI client instance with the latest API KEY
 // PRIORITY: LocalStorage (User Key) > process.env (System Key)
 const getAiClient = () => {
-  const userKey = localStorage.getItem(USER_API_KEY_STORAGE);
-  
-  // Vercel/Vite Safety:
-  // process.env.API_KEY is replaced by a string literal at build time via vite.config.ts
-  // We handle the case where it might be an empty string.
-  const systemKey = process.env.API_KEY || '';
-  
-  const rawKey = userKey || systemKey;
+  // Safe process check for client-side usage
+  const envApiKey = (typeof process !== 'undefined' && process.env && process.env.API_KEY) ? process.env.API_KEY : '';
 
-  // SANITIZATION FIX:
-  // "String contains non ISO-8859-1 code point" error happens if the API Key contains
-  // non-ASCII characters (like invisible spaces, accents, or smart quotes).
-  // We strictly replace anything that is not a standard printable ASCII character.
+  const userKey = localStorage.getItem(USER_API_KEY_STORAGE);
+  const rawKey = userKey || envApiKey;
+
+  // SANITIZATION: Remove non-ASCII characters
   const apiKey = rawKey ? rawKey.replace(/[^\x20-\x7E]/g, '').trim() : '';
 
   if (!apiKey) {
@@ -53,25 +47,35 @@ export const formatGeminiError = (error: any): string => {
     if (!error) return "Unknown error";
     let msg = error.message || error.toString();
     
-    // Check if message is a JSON string (The "Unexpected JSON..." error issue)
+    // Check if message is a JSON string (raw Google API error)
+    // Example: {"error":{"code":429,"message":"You exceeded..."}}
     if (typeof msg === 'string' && (msg.includes('{') && msg.includes('error'))) {
         try {
-            // Attempt to find and parse the JSON part
-            const jsonMatch = msg.match(/\{.*\}/s);
-            if (jsonMatch) {
-                const parsed = JSON.parse(jsonMatch[0]);
-                if (parsed.error && parsed.error.message) {
-                    msg = parsed.error.message;
+            // Find the JSON object boundaries
+            const firstBrace = msg.indexOf('{');
+            const lastBrace = msg.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1) {
+                const jsonStr = msg.substring(firstBrace, lastBrace + 1);
+                const parsed = JSON.parse(jsonStr);
+                
+                if (parsed.error) {
+                    // Extract the friendly message if possible
+                    if (parsed.error.code === 429) {
+                        return "⚠️ Hết hạn ngạch (Quota Exceeded). Vui lòng đợi hoặc dùng Key riêng.";
+                    }
+                    if (parsed.error.message) {
+                        msg = parsed.error.message;
+                    }
                 }
             }
         } catch (e) {
-            // Failed to parse, stick to original string
+            // Failed to parse, stick to original string but clean it up slightly
         }
     }
 
     // Friendly mapping
-    if (msg.includes('429') || msg.includes('Quota') || msg.includes('quota')) {
-        return "⚠️ Hết hạn ngạch miễn phí (Quota Exceeded). Vui lòng đợi 1-2 phút hoặc nhập API Key cá nhân trong Cài đặt.";
+    if (msg.includes('429') || msg.includes('Quota') || msg.includes('quota') || msg.includes('RESOURCE_EXHAUSTED')) {
+        return "⚠️ Hết hạn ngạch miễn phí. Đang thử lại hoặc vui lòng nhập API Key cá nhân.";
     }
     if (msg.includes('503') || msg.includes('Overloaded')) {
         return "⚠️ Server Google đang quá tải. Vui lòng thử lại sau.";
@@ -80,30 +84,41 @@ export const formatGeminiError = (error: any): string => {
         return "⚠️ Chưa có API Key. Vui lòng vào Cài đặt > API Key để cấu hình.";
     }
     
-    return msg;
+    // Clean up generic Google messages
+    return msg.replace('GoogleGenAIError:', '').trim();
 };
 
 // --- Retry Logic Helper ---
-// Increased default retries to 5.
-// Reduced initialDelay to 2000ms (2s) for faster recovery.
-// Backoff strategy: 2s -> 4s -> 8s -> 16s -> 32s
+// SMART RETRY: parses "Please retry in X s" to wait the exact amount of time.
 const callWithRetry = async <T>(fn: () => Promise<T>, retries = 5, initialDelay = 2000): Promise<T> => {
   let attempt = 0;
   while (attempt <= retries) {
     try {
       return await fn();
     } catch (error: any) {
+      const errorStr = error.toString() + (error.message || '');
       const isQuotaError = 
         error.status === 429 || 
-        error.status === 503 || // Service Unavailable (often due to overload)
-        (error.message && error.message.includes('429')) || 
-        (error.message && error.message.includes('503')) ||
-        (error.toString() && error.toString().toLowerCase().includes('quota')) ||
-        (error.toString() && error.toString().toLowerCase().includes('exhausted')) ||
-        (error.toString() && error.toString().toLowerCase().includes('overloaded'));
+        error.status === 503 || 
+        errorStr.includes('429') || 
+        errorStr.includes('503') ||
+        errorStr.toLowerCase().includes('quota') ||
+        errorStr.toLowerCase().includes('resource_exhausted') ||
+        errorStr.toLowerCase().includes('overloaded');
       
       if (isQuotaError && attempt < retries) {
-        const delay = initialDelay * Math.pow(2, attempt); 
+        let delay = initialDelay * Math.pow(2, attempt); 
+        
+        // SMART DELAY: Extract specific wait time from error message
+        // Pattern: "Please retry in 16.63030837s"
+        const waitMatch = errorStr.match(/retry in ([0-9.]+)\s*s/);
+        if (waitMatch && waitMatch[1]) {
+            const serverWaitSeconds = parseFloat(waitMatch[1]);
+            // Add 1s buffer to be safe
+            delay = Math.ceil(serverWaitSeconds * 1000) + 1000;
+            console.log(`[Smart Retry] Server requested wait: ${serverWaitSeconds}s. Sleeping for ${delay}ms.`);
+        }
+
         console.warn(`Gemini API Busy/Quota (Attempt ${attempt + 1}/${retries}). Waiting ${delay/1000}s...`);
         await new Promise(resolve => setTimeout(resolve, delay));
         attempt++;
@@ -117,12 +132,21 @@ const callWithRetry = async <T>(fn: () => Promise<T>, retries = 5, initialDelay 
 
 // Helper to extract image data from a Gemini response
 const handleImageResponse = async (response: GenerateContentResponse): Promise<string> => {
-    for (const part of response.candidates[0].content.parts) {
-      if (part.inlineData) {
-        const base64ImageBytes: string = part.inlineData.data;
-        const mimeType = part.inlineData.mimeType || 'image/png';
-        return `data:${mimeType};base64,${base64ImageBytes}`;
-      }
+    // Safety check for candidates
+    if (!response.candidates || response.candidates.length === 0) {
+        throw new Error("No candidates returned from Gemini API.");
+    }
+    
+    // Support finding image in any part (sometimes text comes first)
+    const content = response.candidates[0].content;
+    if (content && content.parts) {
+        for (const part of content.parts) {
+            if (part.inlineData) {
+                const base64ImageBytes: string = part.inlineData.data;
+                const mimeType = part.inlineData.mimeType || 'image/png';
+                return `data:${mimeType};base64,${base64ImageBytes}`;
+            }
+        }
     }
     throw new Error('No image data found in the response.');
 };
