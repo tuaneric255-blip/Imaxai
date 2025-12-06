@@ -8,7 +8,13 @@ export const USER_API_KEY_STORAGE = 'user_gemini_api_key';
 // PRIORITY: LocalStorage (User Key) > process.env (System Key)
 const getAiClient = () => {
   const userKey = localStorage.getItem(USER_API_KEY_STORAGE);
-  const rawKey = userKey || process.env.API_KEY;
+  
+  // Vercel/Vite Safety:
+  // process.env.API_KEY is replaced by a string literal at build time via vite.config.ts
+  // We handle the case where it might be an empty string.
+  const systemKey = process.env.API_KEY || '';
+  
+  const rawKey = userKey || systemKey;
 
   // SANITIZATION FIX:
   // "String contains non ISO-8859-1 code point" error happens if the API Key contains

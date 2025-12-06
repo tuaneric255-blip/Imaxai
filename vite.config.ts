@@ -1,22 +1,22 @@
+
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
   // Load env file based on `mode` in the current working directory.
-  // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
   const env = loadEnv(mode, (process as any).cwd(), '');
 
   return {
     plugins: [react()],
     define: {
-      // This is critical for Vercel: it replaces 'process.env.API_KEY' in your code
-      // with the actual value from Vercel's Environment Variables during the build.
-      'process.env.API_KEY': JSON.stringify(env.API_KEY)
+      // Critical for Vercel: Replaces 'process.env.API_KEY' in client code with the string value.
+      // If env.API_KEY is undefined, we use an empty string "" to prevent "undefined" in code.
+      'process.env.API_KEY': JSON.stringify(env.API_KEY || '')
     },
     build: {
       outDir: 'dist',
-      sourcemap: false, // Disable sourcemaps in production to save bandwidth
-      chunkSizeWarningLimit: 1000, // Increase chunk size warning limit
+      sourcemap: false,
+      chunkSizeWarningLimit: 1000,
     }
   };
 });
